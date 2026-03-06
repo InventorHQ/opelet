@@ -50,6 +50,38 @@ class GitHubApi {
         }
 
     /**
+     * Fetches the repository description from the GitHub API.
+     */
+    suspend fun getRepoDescription(owner: String, repo: String): Result<String> =
+        withContext(Dispatchers.IO) {
+            try {
+                val url = URL("$BASE_URL/repos/$owner/$repo")
+                val connection = (url.openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = CONNECT_TIMEOUT
+                    readTimeout = READ_TIMEOUT
+                    setRequestProperty("Accept", "application/vnd.github.v3+json")
+                }
+
+                val code = connection.responseCode
+                if (code != 200) {
+                    connection.disconnect()
+                    return@withContext Result.failure(
+                        ApiException(code, "GitHub API returned $code")
+                    )
+                }
+
+                val body = connection.inputStream.bufferedReader().readText()
+                connection.disconnect()
+
+                val description = JSONObject(body).optString("description", "")
+                Result.success(description)
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+
+    /**
      * Downloads a file from the given URL, writing to the destination.
      * Returns the file on success. Calls [onProgress] with bytes downloaded so far and total bytes
      * (-1 if unknown).

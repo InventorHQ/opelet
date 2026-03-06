@@ -171,6 +171,15 @@ private fun AppRow(
                     style = OpeletType.caption,
                     color = colors.muted,
                 )
+                if (!app.description.isNullOrBlank()) {
+                    Text(
+                        text = app.description,
+                        style = OpeletType.caption,
+                        color = colors.muted,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    )
+                }
             }
 
             Column(horizontalAlignment = Alignment.End) {

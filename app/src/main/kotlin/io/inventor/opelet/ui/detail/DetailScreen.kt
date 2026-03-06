@@ -102,6 +102,14 @@ fun DetailScreen(
                 style = OpeletType.caption,
                 color = colors.muted,
             )
+            if (!appData.description.isNullOrBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = appData.description,
+                    style = OpeletType.body,
+                    color = colors.onBackground,
+                )
+            }
             Spacer(Modifier.height(4.dp))
 
             Row {

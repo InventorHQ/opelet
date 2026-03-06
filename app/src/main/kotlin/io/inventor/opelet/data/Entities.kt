@@ -17,6 +17,7 @@ data class TrackedApp(
     val latestStableVersion: String? = null,
     val pinnedVersion: String? = null,
     val preferredAssetPattern: String? = null, // remembered APK choice
+    val description: String? = null,
     val lastChecked: Long = 0L,
     val addedAt: Long = System.currentTimeMillis(),
     val isSelf: Boolean = false, // true for opelet's own entry

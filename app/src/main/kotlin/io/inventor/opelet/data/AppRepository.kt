@@ -28,12 +28,16 @@ class AppRepository(
         val latestStable = releases.firstOrNull { !it.prerelease }
         val latest = releases.first()
 
+        // Fetch description (best-effort, don't fail if it doesn't work)
+        val description = api.getRepoDescription(owner, repo).getOrNull()
+
         val app = TrackedApp(
             repoFullName = fullName,
             owner = owner,
             repo = repo,
             latestVersion = latest.tagName,
             latestStableVersion = latestStable?.tagName,
+            description = description,
             lastChecked = System.currentTimeMillis(),
         )
         dao.upsert(app)
@@ -51,9 +55,14 @@ class AppRepository(
         val latestStable = releases.firstOrNull { !it.prerelease }
         val latest = releases.first()
 
+        // Refresh description if we don't have one yet
+        val description = app.description
+            ?: api.getRepoDescription(app.owner, app.repo).getOrNull()
+
         val updated = app.copy(
             latestVersion = latest.tagName,
             latestStableVersion = latestStable?.tagName,
+            description = description,
             lastChecked = System.currentTimeMillis(),
         )
         dao.update(updated)

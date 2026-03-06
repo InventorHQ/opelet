@@ -5,7 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [TrackedApp::class], version = 1, exportSchema = false)
+@Database(entities = [TrackedApp::class], version = 2, exportSchema = false)
 abstract class OpeletDatabase : RoomDatabase() {
 
     abstract fun trackedAppDao(): TrackedAppDao
@@ -20,7 +20,8 @@ abstract class OpeletDatabase : RoomDatabase() {
                     context.applicationContext,
                     OpeletDatabase::class.java,
                     "opelet.db"
-                ).build().also { instance = it }
+                ).fallbackToDestructiveMigration()
+                    .build().also { instance = it }
             }
     }
 }
