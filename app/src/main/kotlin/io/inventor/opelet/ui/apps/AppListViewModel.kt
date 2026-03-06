@@ -39,7 +39,10 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
 
     init {
         viewModelScope.launch {
-            repo.ensureSelfTracked()
+            val packageInfo = try {
+                application.packageManager.getPackageInfo(application.packageName, 0)
+            } catch (_: Exception) { null }
+            repo.ensureSelfTracked(packageInfo?.versionName)
         }
     }
 

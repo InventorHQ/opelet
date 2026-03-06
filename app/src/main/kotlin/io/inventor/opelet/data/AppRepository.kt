@@ -93,18 +93,29 @@ class AppRepository(
 
     suspend fun appCount(): Int = dao.count()
 
-    suspend fun ensureSelfTracked() {
+    /**
+     * Ensures opelet tracks itself. Sets the installed version from the
+     * running app's versionName so the update indicator works correctly.
+     */
+    suspend fun ensureSelfTracked(currentVersion: String?) {
         val self = dao.getByRepoFullName(SELF_REPO)
         if (self == null) {
             val app = TrackedApp(
                 repoFullName = SELF_REPO,
                 owner = SELF_OWNER,
                 repo = SELF_REPO_NAME,
+                installedVersion = currentVersion?.let { "v$it" },
                 isSelf = true,
             )
             dao.upsert(app)
             // Try to fetch latest info, but don't fail if network is unavailable
             try { refreshApp(app) } catch (_: Exception) {}
+        } else if (currentVersion != null) {
+            // Always keep installed version in sync with what's actually running
+            val versionTag = "v$currentVersion"
+            if (self.installedVersion != versionTag) {
+                dao.update(self.copy(installedVersion = versionTag))
+            }
         }
     }
 
