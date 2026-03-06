@@ -13,6 +13,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history for git rev-list commit counting
 
       - uses: actions/setup-java@v4
         with:
@@ -40,12 +42,13 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew assembleRelease
 
-      - name: Get version name
+      - name: Get version from APK
         id: version
         run: |
-          VERSION=$(grep 'versionName' app/build.gradle.kts | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          VERSION=$($ANDROID_HOME/build-tools/35.0.0/aapt dump badging app/build/outputs/apk/release/app-release.apk | grep versionName | sed "s/.*versionName='//" | sed "s/'.*//")
           echo "name=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Version: $VERSION"
 
       - name: Rename APKs
         run: |
@@ -57,7 +60,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="${{ steps.version.outputs.tag }}"
-          # Delete existing release and tag if present, so we always have a fresh one for the current version
           gh release delete "$TAG" --yes --cleanup-tag 2>/dev/null || true
           gh release create "$TAG" \
             --title "opelet ${{ steps.version.outputs.name }}" \

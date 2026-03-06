@@ -5,6 +5,31 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+// --- Version scheme ---
+// Major.Minor is set manually below. Bump when shipping a meaningful change.
+// Patch is auto-derived from commit count since the last "vX.Y.0" tag (or total commits if no tag).
+// versionCode is total commit count (monotonically increasing).
+val versionMajor = 0
+val versionMinor = 1
+
+fun gitCommitCount(): Int = providers.exec {
+    commandLine("git", "rev-list", "--count", "HEAD")
+}.standardOutput.asText.get().trim().toIntOrNull() ?: 1
+
+fun gitCommitsSinceTag(): Int {
+    val tag = "v$versionMajor.$versionMinor.0"
+    return try {
+        providers.exec {
+            commandLine("git", "rev-list", "--count", "$tag..HEAD")
+        }.standardOutput.asText.get().trim().toIntOrNull() ?: gitCommitCount()
+    } catch (_: Exception) {
+        gitCommitCount()
+    }
+}
+
+val computedVersionCode = gitCommitCount()
+val computedVersionName = "$versionMajor.$versionMinor.${gitCommitsSinceTag()}"
+
 android {
     namespace = "io.inventor.opelet"
     compileSdk = 36
@@ -13,8 +38,8 @@ android {
         applicationId = "io.inventor.opelet"
         minSdk = 29
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = computedVersionCode
+        versionName = computedVersionName
     }
 
     signingConfigs {
