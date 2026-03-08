@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [TrackedApp::class], version = 2, exportSchema = false)
+@Database(entities = [TrackedApp::class], version = 3, exportSchema = false)
 abstract class OpeletDatabase : RoomDatabase() {
 
     abstract fun trackedAppDao(): TrackedAppDao
@@ -22,13 +22,19 @@ abstract class OpeletDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tracked_apps ADD COLUMN packageName TEXT DEFAULT NULL")
+            }
+        }
+
         fun get(context: Context): OpeletDatabase =
             instance ?: synchronized(this) {
                 instance ?: Room.databaseBuilder(
                     context.applicationContext,
                     OpeletDatabase::class.java,
                     "opelet.db"
-                ).addMigrations(MIGRATION_1_2)
+                ).addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build().also { instance = it }
             }
     }

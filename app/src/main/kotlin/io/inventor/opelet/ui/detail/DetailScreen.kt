@@ -29,6 +29,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
 import io.inventor.opelet.model.GitHubAsset
 import io.inventor.opelet.model.GitHubRelease
@@ -51,6 +53,11 @@ fun DetailScreen(
     val downloadState by viewModel.downloadProgress.collectAsState()
     val apkPickerAssets by viewModel.apkPicker.collectAsState()
     val colors = OpeletTheme.colors
+
+    // When the user returns from the system installer, verify if the install succeeded
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        viewModel.verifyPendingInstall()
+    }
 
     // APK picker dialog
     apkPickerAssets?.let { assets ->
@@ -183,14 +190,20 @@ fun DetailScreen(
         )
         Spacer(Modifier.height(8.dp))
 
+        val installedVersion = app?.installedVersion
+        val pinnedVersion = app?.pinnedVersion
+
         LazyColumn(
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(bottom = 16.dp),
         ) {
             items(releases, key = { it.id }) { release ->
+                val isInstalled = installedVersion == release.tagName
+                val isPinned = pinnedVersion == release.tagName
                 ReleaseRow(
                     release = release,
-                    isInstalled = app?.installedVersion == release.tagName,
+                    isInstalled = isInstalled,
+                    isPinned = isPinned,
                     onInstall = { viewModel.installRelease(release) },
                     onPin = { viewModel.pinVersion(release.tagName) },
                 )
@@ -203,6 +216,7 @@ fun DetailScreen(
 private fun ReleaseRow(
     release: GitHubRelease,
     isInstalled: Boolean,
+    isPinned: Boolean,
     onInstall: () -> Unit,
     onPin: () -> Unit,
 ) {
@@ -239,10 +253,18 @@ private fun ReleaseRow(
                                 color = colors.onSurface,
                             )
                         }
+                        if (isPinned) {
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "pinned",
+                                style = OpeletType.caption,
+                                color = colors.muted,
+                            )
+                        }
                     }
                     if (release.publishedAt.isNotEmpty()) {
                         Text(
-                            text = release.publishedAt.take(10), // just the date
+                            text = release.publishedAt.take(10),
                             style = OpeletType.caption,
                             color = colors.muted,
                         )
@@ -250,9 +272,14 @@ private fun ReleaseRow(
                 }
 
                 Row {
-                    OpeletButton(text = "pin", onClick = onPin)
-                    Spacer(Modifier.width(8.dp))
-                    OpeletButton(text = "install", onClick = onInstall)
+                    if (!isPinned) {
+                        OpeletButton(text = "pin", onClick = onPin)
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    OpeletButton(
+                        text = if (isInstalled) "reinstall" else "install",
+                        onClick = onInstall,
+                    )
                 }
             }
 

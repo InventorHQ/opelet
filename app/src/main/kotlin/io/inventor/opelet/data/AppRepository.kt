@@ -91,6 +91,13 @@ class AppRepository(
         dao.update(app.copy(preferredAssetPattern = pattern))
     }
 
+    suspend fun setPackageName(repoFullName: String, packageName: String) {
+        val app = dao.getByRepoFullName(repoFullName) ?: return
+        if (app.packageName != packageName) {
+            dao.update(app.copy(packageName = packageName))
+        }
+    }
+
     suspend fun appCount(): Int = dao.count()
 
     /**

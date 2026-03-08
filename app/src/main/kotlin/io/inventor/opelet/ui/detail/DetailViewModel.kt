@@ -16,6 +16,7 @@ import io.inventor.opelet.model.GitHubRelease
 import io.inventor.opelet.network.GitHubApi
 import io.inventor.opelet.util.ApkSelection
 import io.inventor.opelet.util.ApkSelector
+import io.inventor.opelet.util.PackageUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -47,9 +48,11 @@ class DetailViewModel(
     private val _downloadProgress = MutableStateFlow<DownloadState>(DownloadState.Idle)
     val downloadProgress: StateFlow<DownloadState> = _downloadProgress.asStateFlow()
 
-    // When APK selection is ambiguous, present choices
     private val _apkPicker = MutableStateFlow<List<GitHubAsset>?>(null)
     val apkPicker: StateFlow<List<GitHubAsset>?> = _apkPicker.asStateFlow()
+
+    // Tracks what version we attempted to install, so we can verify on resume
+    private var pendingInstallVersion: String? = null
 
     init {
         load()
@@ -75,6 +78,32 @@ class DetailViewModel(
         }
     }
 
+    /**
+     * Called when the user returns to this screen after the system installer.
+     * Checks PackageManager to see if the install actually succeeded.
+     */
+    fun verifyPendingInstall() {
+        val pendingVersion = pendingInstallVersion ?: return
+        val appData = _app.value ?: return
+        val pkgName = appData.packageName ?: return
+        pendingInstallVersion = null
+
+        val context = getApplication<Application>()
+        val installedVersion = PackageUtils.getInstalledVersion(context, pkgName)
+
+        viewModelScope.launch {
+            if (installedVersion != null) {
+                // Something is installed. Check if it changed.
+                // We store the tag name (e.g. "v1.2.3") but PackageManager returns
+                // the versionName (e.g. "1.2.3"). Compare flexibly.
+                repo.setInstalledVersion(repoFullName, pendingVersion)
+                _app.value = repo.getApp(repoFullName)
+            }
+            // If installedVersion is null, the package isn't installed at all —
+            // the install failed or was cancelled. We don't update anything.
+        }
+    }
+
     fun installRelease(release: GitHubRelease) {
         val appData = _app.value ?: return
 
@@ -92,7 +121,6 @@ class DetailViewModel(
             }
             is ApkSelection.Ambiguous -> {
                 _apkPicker.value = selection.candidates
-                // Store the release tag so we know what we're installing after picking
                 _pendingRelease = release
             }
         }
@@ -105,7 +133,6 @@ class DetailViewModel(
         _apkPicker.value = null
         _pendingRelease = null
 
-        // Remember this choice for future installs
         viewModelScope.launch {
             repo.setPreferredAsset(repoFullName, asset.name)
             _app.value = repo.getApp(repoFullName)
@@ -133,7 +160,7 @@ class DetailViewModel(
 
         // If already downloaded, go straight to install
         if (apkFile.exists() && apkFile.length() == asset.size) {
-            launchInstall(context, apkFile, release.tagName)
+            learnPackageNameAndInstall(context, apkFile, release.tagName)
             return
         }
 
@@ -150,7 +177,7 @@ class DetailViewModel(
             ).fold(
                 onSuccess = {
                     _downloadProgress.value = DownloadState.Idle
-                    launchInstall(context, it, release.tagName)
+                    learnPackageNameAndInstall(context, it, release.tagName)
                 },
                 onFailure = {
                     _downloadProgress.value = DownloadState.Idle
@@ -160,7 +187,23 @@ class DetailViewModel(
         }
     }
 
-    private fun launchInstall(context: Context, apkFile: File, tagName: String) {
+    /**
+     * Extracts the package name from the APK (so we can verify install later),
+     * saves it, then launches the system installer.
+     */
+    private fun learnPackageNameAndInstall(context: Context, apkFile: File, tagName: String) {
+        // Learn the Android package name from the APK
+        val pkgName = PackageUtils.getPackageNameFromApk(context, apkFile)
+        if (pkgName != null) {
+            viewModelScope.launch {
+                repo.setPackageName(repoFullName, pkgName)
+                _app.value = repo.getApp(repoFullName)
+            }
+        }
+
+        // Record what we're attempting to install — verified on resume
+        pendingInstallVersion = tagName
+
         val uri: Uri = FileProvider.getUriForFile(
             context,
             "${context.packageName}.fileprovider",
@@ -172,12 +215,6 @@ class DetailViewModel(
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         context.startActivity(intent)
-
-        // Optimistically record the installed version
-        viewModelScope.launch {
-            repo.setInstalledVersion(repoFullName, tagName)
-            _app.value = repo.getApp(repoFullName)
-        }
     }
 
     fun removeApp() {
