@@ -52,6 +52,7 @@ fun DetailScreen(
     val error by viewModel.error.collectAsState()
     val downloadState by viewModel.downloadProgress.collectAsState()
     val apkPickerAssets by viewModel.apkPicker.collectAsState()
+    val cacheSize by viewModel.cacheSize.collectAsState()
     val colors = OpeletTheme.colors
 
     // When the user returns from the system installer, verify if the install succeeded
@@ -169,14 +170,34 @@ fun DetailScreen(
             Spacer(Modifier.height(8.dp))
         }
 
-        // Pin/unpin
+        // Pin/unpin + cache
         app?.let { appData ->
-            Row {
-                if (appData.pinnedVersion != null) {
-                    OpeletButton(
-                        text = "unpin",
-                        onClick = { viewModel.pinVersion(null) },
-                    )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Row {
+                    if (appData.pinnedVersion != null) {
+                        OpeletButton(
+                            text = "unpin",
+                            onClick = { viewModel.pinVersion(null) },
+                        )
+                    }
+                }
+                if (cacheSize > 0) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = formatSize(cacheSize),
+                            style = OpeletType.caption,
+                            color = colors.muted,
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        OpeletButton(
+                            text = "clear",
+                            onClick = { viewModel.clearDownloads() },
+                        )
+                    }
                 }
             }
             Spacer(Modifier.height(8.dp))

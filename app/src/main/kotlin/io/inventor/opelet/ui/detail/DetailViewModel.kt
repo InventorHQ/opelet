@@ -54,8 +54,32 @@ class DetailViewModel(
     // Tracks what version we attempted to install, so we can verify on resume
     private var pendingInstallVersion: String? = null
 
+    private val _cacheSize = MutableStateFlow<Long>(0L)
+    val cacheSize: StateFlow<Long> = _cacheSize.asStateFlow()
+
     init {
         load()
+        refreshCacheSize()
+    }
+
+    private fun refreshCacheSize() {
+        val context = getApplication<Application>()
+        val apkDir = File(context.filesDir, "apks")
+        val prefix = repoFullName.replace('/', '_') + "_"
+        _cacheSize.value = apkDir.listFiles()
+            ?.filter { it.name.startsWith(prefix) }
+            ?.sumOf { it.length() }
+            ?: 0L
+    }
+
+    fun clearDownloads() {
+        val context = getApplication<Application>()
+        val apkDir = File(context.filesDir, "apks")
+        val prefix = repoFullName.replace('/', '_') + "_"
+        apkDir.listFiles()?.forEach { file ->
+            if (file.name.startsWith(prefix)) file.delete()
+        }
+        refreshCacheSize()
     }
 
     fun load() {
@@ -177,6 +201,9 @@ class DetailViewModel(
             ).fold(
                 onSuccess = {
                     _downloadProgress.value = DownloadState.Idle
+                    // Clean up older APKs for this app, keep only the one we just downloaded
+                    cleanupOldApks(apkDir, apkFile)
+                    refreshCacheSize()
                     learnPackageNameAndInstall(context, it, release.tagName)
                 },
                 onFailure = {
@@ -184,6 +211,18 @@ class DetailViewModel(
                     _error.value = "download failed: ${it.message}"
                 },
             )
+        }
+    }
+
+    /**
+     * Deletes older APKs for this app, keeping only [keep].
+     */
+    private fun cleanupOldApks(apkDir: File, keep: File) {
+        val prefix = repoFullName.replace('/', '_') + "_"
+        apkDir.listFiles()?.forEach { file ->
+            if (file.name.startsWith(prefix) && file != keep) {
+                file.delete()
+            }
         }
     }
 
